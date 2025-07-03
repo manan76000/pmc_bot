@@ -3,64 +3,47 @@ import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from PIL import Image
-import io
 
-user_sessions = {}
+TOKEN = os.environ.get("TOKEN")
+IMAGE_DIR = "images"
 
-BEFORE_BOX = (60, 220, 340, 640)
-AFTER_BOX = (430, 220, 710, 640)
-TEMPLATE_PATH = "template.png"
+# Ensure image directory exists
+os.makedirs(IMAGE_DIR, exist_ok=True)
+
+user_images = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user_sessions[chat_id] = {"step": "waiting_before"}
-    await update.message.reply_text("Welcome! Please send the *Before* photo.")
+    await update.message.reply_text("Send me two images:
+1. Before
+2. After")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
+    user_id = update.message.from_user.id
     photo_file = await update.message.photo[-1].get_file()
-    photo_bytes = await photo_file.download_as_bytearray()
-    img = Image.open(io.BytesIO(photo_bytes)).convert("RGB")
+    image_path = os.path.join(IMAGE_DIR, f"{user_id}_{len(user_images.get(user_id, []))}.jpg")
+    await photo_file.download_to_drive(image_path)
 
-    session = user_sessions.get(chat_id, {})
+    user_images.setdefault(user_id, []).append(image_path)
 
-    if session.get("step") == "waiting_before":
-        session["before"] = img
-        session["step"] = "waiting_after"
-        await update.message.reply_text("Got it! Now send the *After* photo.")
-    elif session.get("step") == "waiting_after":
-        session["after"] = img
-        await update.message.reply_text("Generating your before-after image…")
-        result = create_before_after_image(session["before"], session["after"])
-        output = io.BytesIO()
-        output.name = 'before_after.jpg'
-        result.save(output, format='JPEG')
-        output.seek(0)
-        await update.message.reply_photo(photo=output)
-        user_sessions[chat_id] = {}  # Reset
+    if len(user_images[user_id]) == 2:
+        combined = create_template_image(user_images[user_id][0], user_images[user_id][1])
+        combined_path = os.path.join(IMAGE_DIR, f"{user_id}_combined.jpg")
+        combined.save(combined_path)
+        await update.message.reply_photo(photo=open(combined_path, "rb"))
+        user_images[user_id] = []
     else:
-        await update.message.reply_text("Please start with /start")
+        await update.message.reply_text("Now send the second image.")
 
-def create_before_after_image(before, after):
-    template = Image.open(TEMPLATE_PATH).convert("RGB")
-
-    before_area = (BEFORE_BOX[2] - BEFORE_BOX[0], BEFORE_BOX[3] - BEFORE_BOX[1])
-    after_area = (AFTER_BOX[2] - AFTER_BOX[0], AFTER_BOX[3] - AFTER_BOX[1])
-
-    before = before.resize(before_area)
-    after = after.resize(after_area)
-
-    template.paste(before, BEFORE_BOX[:2])
-    template.paste(after, AFTER_BOX[:2])
-
+def create_template_image(before_path, after_path):
+    template = Image.open("template.png").convert("RGBA")
+    before = Image.open(before_path).resize((450, 450))
+    after = Image.open(after_path).resize((450, 450))
+    template.paste(before, (100, 270))
+    template.paste(after, (680, 270))
     return template
 
-if __name__ == "__main__":
-    TOKEN = "7615101678:AAEnb9h9VBuwJPqcIErGUvvojSkiTzzln_Y"
-
+if __name__ == '__main__':
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-    print("Bot running...")
     app.run_polling()
