@@ -1,2 +1,1 @@
-python-telegram-bot==20.3
-pillow
+pyTelegramBotAPI==4.15.1

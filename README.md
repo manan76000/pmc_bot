@@ -1,1 +1,3 @@
-# pmc_bot
+# PMC Bot
+
+Telegram bot deployed on Render.
