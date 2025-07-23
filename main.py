@@ -23,7 +23,7 @@ def paste_resized(template, img, box):
 @bot.message_handler(commands=["start"])
 def start(message):
     user_photos[message.chat.id] = []
-    bot.reply_to(message, "Send the BEFORE photo.")
+    bot.reply_to(message, "Send the BEFORE photo")
 
 @bot.message_handler(content_types=["photo"])
 def handle_photo(message):
