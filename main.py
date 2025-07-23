@@ -2,17 +2,12 @@ import os
 from dotenv import load_dotenv
 from PIL import Image
 import telebot
-from flask import Flask, request
 from io import BytesIO
 
 # Load token
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 bot = telebot.TeleBot(TOKEN)
-app = Flask(__name__)
-
-# Your Railway domain or custom domain
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Set this in Railway variables
 
 user_photos = {}
 
@@ -28,7 +23,7 @@ def paste_resized(template, img, box):
 @bot.message_handler(commands=["start"])
 def start(message):
     user_photos[message.chat.id] = []
-    bot.reply_to(message, "Send the BEFORE photo")
+    bot.reply_to(message, "Send the BEFORE photo.")
 
 @bot.message_handler(content_types=["photo"])
 def handle_photo(message):
@@ -52,18 +47,4 @@ def handle_photo(message):
             bot.send_photo(chat_id, result)
         user_photos[chat_id] = []
 
-# Webhook route
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    update = telebot.types.Update.de_json(request.data.decode("utf-8"))
-    bot.process_new_updates([update])
-    return "OK", 200
-
-# Set webhook before first request
-@app.before_first_request
-def setup_webhook():
-    bot.remove_webhook()
-    bot.set_webhook(url=WEBHOOK_URL)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
+bot.infinity_polling()
